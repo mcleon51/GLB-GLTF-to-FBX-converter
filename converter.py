@@ -20,8 +20,13 @@ try:
 except Exception:
     HAS_DND = False
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-BLENDER_SCRIPT = os.path.join(APP_DIR, "blender_convert.py")
+if getattr(sys, "frozen", False):
+    RESOURCE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    APP_DIR = RESOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+BLENDER_SCRIPT = os.path.join(RESOURCE_DIR, "blender_convert.py")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 
 SUPPORTED_EXT = {".glb", ".gltf", ".obj", ".fbx", ".blend"}
@@ -193,6 +198,9 @@ class ConverterApp:
         self.log.see("end")
         self.log.configure(state="disabled")
 
+    def log_line_safe(self, text):
+        self.root.after(0, self.log_line, text)
+
     def add_files(self):
         paths = filedialog.askopenfilenames(
             title="Выберите 3D-файлы",
@@ -339,7 +347,7 @@ class ConverterApp:
             out = self._out_name(path)
             out_path = os.path.join(os.path.dirname(path), out)
             self.root.after(0, lambda p=path: self._refresh_tree(p, "конвертирую..."))
-            self.log_line("---- {}".format(os.path.basename(path)))
+            self.log_line_safe("---- {}".format(os.path.basename(path)))
             ok = self._run_one(blender, path, out_path)
             done += 1
             state = "OK" if ok else "ОШИБКА"
@@ -365,7 +373,7 @@ class ConverterApp:
 
     def _run_one(self, blender, src, dst):
         cmd = [blender, "-b", "--python", BLENDER_SCRIPT, "--", src, dst]
-        self.log_line("  blender -b (headless)...")
+        self.log_line_safe("  blender -b (headless)...")
         try:
             creation = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             proc = subprocess.Popen(
@@ -395,7 +403,7 @@ class ConverterApp:
                 result = "ERROR:" + line[len("ERROR:"):]
             elif line.startswith("MISSING:"):
                 result = "MISSING:"
-            self.root.after(0, self.log_line, "  " + line)
+            self.root.after(0, self.log_line_safe, "  " + line)
         proc.wait()
 
         if result == "OK:":
